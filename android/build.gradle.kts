@@ -20,7 +20,8 @@ subprojects {
 }
 
 subprojects {
-    afterEvaluate {
+    val project = this
+    val configureNamespace = {
         if (project.hasProperty("android")) {
             val android = project.extensions.getByName("android") as com.android.build.gradle.BaseExtension
             if (android.namespace == null) {
@@ -41,6 +42,14 @@ subprojects {
                     println("Fixed missing namespace for ${project.name} using fallback: ${android.namespace}")
                 }
             }
+        }
+    }
+
+    if (project.state.executed) {
+        configureNamespace()
+    } else {
+        project.afterEvaluate {
+            configureNamespace()
         }
     }
 }
