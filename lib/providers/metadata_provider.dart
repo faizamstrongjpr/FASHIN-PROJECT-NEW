@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:metadata_god/metadata_god.dart';
+import '../services/metadata_shim.dart'; // SHIM
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;

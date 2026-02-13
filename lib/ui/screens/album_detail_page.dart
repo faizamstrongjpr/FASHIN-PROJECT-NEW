@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:palette_generator/palette_generator.dart';
-import 'package:metadata_god/metadata_god.dart';
+import '../services/metadata_shim.dart'; // SHIM
 import '../../models/album_model.dart';
 
 import '../../models/song_model.dart';

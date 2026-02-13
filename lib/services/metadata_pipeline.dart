@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:metadata_god/metadata_god.dart';
+import '../services/metadata_shim.dart'; // SHIM
 import '../services/spotify_service.dart';
 
 /// A unified result object that the UI will use.

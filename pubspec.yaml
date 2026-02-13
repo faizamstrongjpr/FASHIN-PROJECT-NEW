@@ -20,7 +20,7 @@ dependencies:
   # equalizer_flutter: ^0.0.1 # Still disabled as it's truly broken
 
   # Metadata
-  metadata_god: ^1.1.0 # Restore
+  # metadata_god: ^1.1.0 # REMOVED for Simple Build
   # flutter_media_metadata: 1.0.0+1 # Still disabled
   
   # Tools
@@ -39,7 +39,7 @@ dependencies:
   provider: ^6.1.2
   flutter_dotenv: ^6.0.0
   envied: ^0.5.4+1
-  scrollable_positioned_list:
+  scrollable_positioned_list: ^0.3.8
   palette_generator: ^0.3.3
   bitsdojo_window: ^0.1.5
   window_manager: ^0.3.9 # Kept for deskto compatibility if needed, but safe
@@ -77,7 +77,7 @@ dependencies:
   qr_flutter: ^4.1.0
   flutter_localizations:
     sdk: flutter
-  pocketbase: ^0.23.0+1
+  # pocketbase: ^0.23.0+1 # REMOVED for Simple Build
   open_filex: ^4.5.0
   flutter_inappwebview: ^6.1.5
 

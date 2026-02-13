@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:provider/provider.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 // import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:metadata_god/metadata_god.dart';
+import 'services/metadata_shim.dart'; // SHIM
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:window_manager/window_manager.dart';
 // import 'package:smtc_windows/smtc_windows.dart';

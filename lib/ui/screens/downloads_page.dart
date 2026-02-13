@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:metadata_god/metadata_god.dart';
+import '../services/metadata_shim.dart'; // SHIM
 import 'package:open_filex/open_filex.dart';
 
 import '../../models/song_model.dart';

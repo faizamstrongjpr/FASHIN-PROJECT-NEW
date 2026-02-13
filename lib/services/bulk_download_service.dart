@@ -8,7 +8,7 @@ import '../models/song_model.dart';
 import '../models/song_metadata.dart';
 import '../models/download_progress.dart';
 // import 'smart_download_service.dart';
-import 'package:metadata_god/metadata_god.dart'; // 🚀 IMPORT
+import '../services/metadata_shim.dart'; // SHIM
 import 'youtube_downloader_service.dart';
 import 'metrics_service.dart';
 import 'spotify_service.dart';

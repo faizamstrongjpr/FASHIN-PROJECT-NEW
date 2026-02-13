@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart'; // Just ensuring
 import 'package:just_audio/just_audio.dart' as ja;
 import 'package:palette_generator/palette_generator.dart';
 import 'package:flutter/foundation.dart';
-import 'package:metadata_god/metadata_god.dart';
+import '../services/metadata_shim.dart'; // SHIM
 
 import '../models/song_model.dart';
 import '../services/native_music_service.dart';

@@ -11,7 +11,7 @@ import 'package:flutter/widgets.dart'; // 🚀 For WidgetsBinding
 
 import 'package:audio_service/audio_service.dart'; // 🚀 IMPORT
 import 'audio_handler.dart'; // 🚀 IMPORT
-import 'package:metadata_god/metadata_god.dart';
+import '../services/metadata_shim.dart'; // SHIM
 import '../models/song_model.dart';
 // Env not needed locally
 

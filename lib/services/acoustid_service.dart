@@ -4,7 +4,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:metadata_god/metadata_god.dart';
+import '../services/metadata_shim.dart'; // SHIM
 
 // --- NATIVE C FUNCTION SIGNATURE (Unified Wrapper) ---
 // We define the signature for the single function exposed by our C++ wrapper.
