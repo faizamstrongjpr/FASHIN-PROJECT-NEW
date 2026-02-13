@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:equalizer_flutter/equalizer_flutter.dart';
+// import 'package:equalizer_flutter/equalizer_flutter.dart'; // REMOVED due to build issues
 import '../models/eq_preset.dart';
 
 class EqualizerProvider extends ChangeNotifier {
@@ -32,12 +32,11 @@ class EqualizerProvider extends ChangeNotifier {
 
     try {
       _activeSessionId = sessionId;
-      await EqualizerFlutter.init(sessionId);
-      // Determine if it was already enabled in the system
-      // Note: we can't read 'getEnabled', so we rely on our state
-      await EqualizerFlutter.setEnabled(_isEnabled);
+      // EQUALIZER DISABLED
+      // await EqualizerFlutter.init(sessionId);
+      // await EqualizerFlutter.setEnabled(_isEnabled);
 
-      await _fetchDeviceBands();
+      // await _fetchDeviceBands();
 
       if (_currentPreset != null) {
         _applyToNative(_currentPreset!.gains);
@@ -48,6 +47,8 @@ class EqualizerProvider extends ChangeNotifier {
   }
 
   Future<void> _fetchDeviceBands() async {
+    // DISABLED
+    /*
     if (!Platform.isAndroid) return;
 
     try {
@@ -62,6 +63,7 @@ class EqualizerProvider extends ChangeNotifier {
     } catch (e) {
       print("Error fetching bands: $e");
     }
+    */
   }
 
   Future<void> _loadPresets() async {
@@ -87,6 +89,8 @@ class EqualizerProvider extends ChangeNotifier {
 
   Future<void> toggleEnabled(bool val) async {
     _isEnabled = val;
+    // DISABLED
+    /*
     if (Platform.isAndroid && _activeSessionId != null) {
       try {
         await EqualizerFlutter.setEnabled(val);
@@ -94,6 +98,7 @@ class EqualizerProvider extends ChangeNotifier {
         print("EQ Enable Error: $e");
       }
     }
+    */
     notifyListeners();
   }
 
@@ -117,6 +122,8 @@ class EqualizerProvider extends ChangeNotifier {
   }
 
   void _applyToNative(List<double> gains) {
+    // DISABLED
+    /*
     if (Platform.isAndroid && _isEnabled && _activeSessionId != null) {
       try {
         for (int i = 0; i < gains.length; i++) {
@@ -127,6 +134,7 @@ class EqualizerProvider extends ChangeNotifier {
         print("EQ Apply Error: $e");
       }
     }
+    */
   }
 
   Future<void> deletePreset(String id) async {

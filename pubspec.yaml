@@ -17,7 +17,7 @@ dependencies:
   just_audio: ^0.9.36
   audio_service: ^0.18.12  # Android notification media controls
   just_audio_windows:
-  equalizer_flutter: ^0.0.1 # Standard Android EQ wrapper
+  # equalizer_flutter: ^0.0.1 # REMOVED due to namespace build errors
 
   # Metadata
   metadata_god: 1.1.0
