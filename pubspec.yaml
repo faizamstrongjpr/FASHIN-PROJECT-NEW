@@ -20,7 +20,7 @@ dependencies:
   # equalizer_flutter: ^0.0.1 # REMOVED
 
   # Metadata
-  metadata_god: ^1.0.0 # Downgraded from 1.1.0
+  # metadata_god: ^1.0.0 # REMOVED due to Dart SDK conflict
   # flutter_media_metadata: 1.0.0+1 # REMOVED
   
   # Tools
