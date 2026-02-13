@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.momotz4g.simplemusicplayer2"
-    compileSdk = 36
+    compileSdk = 34
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
