@@ -1,0 +1,1550 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart' as p;
+import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart'; // Import for device list
+
+import '../../providers/settings_provider.dart';
+import '../../providers/library_provider.dart';
+import '../../providers/stats_provider.dart';
+import '../../providers/player_provider.dart';
+import '../../services/youtube_downloader_service.dart';
+import '../../services/metrics_service.dart';
+import '../../services/android_audio_service.dart'; // NEW
+import '../../services/usb_audio_service.dart'; // USB Audio for Android <14
+import 'admin_stats_page.dart';
+
+class SettingsPage extends ConsumerStatefulWidget {
+  const SettingsPage({super.key});
+
+  @override
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends ConsumerState<SettingsPage> {
+  String _cacheSizeText = "Calculating...";
+  String _versionText = "Version ...";
+  final YoutubeDownloaderService _ytService = YoutubeDownloaderService();
+
+  final TextEditingController _formatCtrl = TextEditingController();
+  final TextEditingController _playlistFormatCtrl = TextEditingController();
+
+  String _savedPattern = "{artist} - {title}";
+  String _savedPlaylistPattern = "{artist} - {title}";
+
+  // Audio Device Handling
+  List<Map<String, String>> _audioDevices = [];
+  bool _loadingAudioDevices = false;
+  bool _isAndroidBitPerfectSupported = false; // NEW
+
+  // USB Audio for Android <14
+  List<UsbDacDevice> _usbDacs = [];
+  bool _loadingUsbDacs = false;
+  UsbDacDevice? _connectedDac;
+  bool _usbAudioEnabled = false;
+
+  bool get _unsavedSingle => _formatCtrl.text != _savedPattern;
+  bool get _unsavedPlaylist =>
+      _playlistFormatCtrl.text != _savedPlaylistPattern;
+
+  String _getStreamingQualityDescription(String quality) {
+    switch (quality) {
+      case 'standard':
+        return 'MP3 - Smaller files, faster buffering';
+      case 'high':
+        return 'M4A - Better quality, balanced';
+      case 'lossless':
+        return 'FLAC - Lossless quality from Deezer/Tidal';
+      default:
+        return 'Select streaming quality';
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCacheSize();
+    _loadFormat();
+    _loadVersion();
+    if (Platform.isWindows) {
+      _loadAudioDevices();
+    }
+    if (Platform.isAndroid) {
+      _checkAndroidSupport();
+    }
+  }
+
+  Future<void> _checkAndroidSupport() async {
+    final supported = await AndroidAudioService.isBitPerfectSupported();
+    if (mounted) {
+      setState(() {
+        _isAndroidBitPerfectSupported = supported;
+      });
+    }
+  }
+
+  Future<void> _loadAudioDevices() async {
+    setState(() => _loadingAudioDevices = true);
+    try {
+      final devices = await JustAudioMediaKit.listAudioDevices();
+      if (mounted) {
+        setState(() {
+          _audioDevices = devices;
+          _loadingAudioDevices = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error listing devices: $e");
+      if (mounted) setState(() => _loadingAudioDevices = false);
+    }
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _versionText = "Version ${info.version}";
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _formatCtrl.dispose();
+    _playlistFormatCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadCacheSize() async {
+    final size = await _ytService.getCacheSize();
+    if (mounted) {
+      setState(() {
+        _cacheSizeText = size;
+      });
+    }
+  }
+
+  Future<void> _loadFormat() async {
+    final prefs = await SharedPreferences.getInstance();
+    final pattern = prefs.getString('filename_pattern') ?? "{artist} - {title}";
+    final playlistPattern =
+        prefs.getString('playlist_filename_pattern') ?? "{artist} - {title}";
+
+    if (mounted) {
+      setState(() {
+        _savedPattern = pattern;
+        _savedPlaylistPattern = playlistPattern;
+
+        _formatCtrl.text = pattern;
+        _playlistFormatCtrl.text = playlistPattern;
+      });
+    }
+  }
+
+  void _onFormatChanged(String value) {
+    setState(() {});
+  }
+
+  void _onPlaylistFormatChanged(String value) {
+    setState(() {});
+  }
+
+  Future<void> _saveFormat() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('filename_pattern', _formatCtrl.text);
+    await prefs.setString(
+        'playlist_filename_pattern', _playlistFormatCtrl.text);
+
+    if (mounted) {
+      setState(() {
+        _savedPattern = _formatCtrl.text;
+        _savedPlaylistPattern = _playlistFormatCtrl.text;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Format saved!")),
+      );
+      FocusScope.of(context).unfocus();
+    }
+  }
+
+  Future<void> _pickDownloadPath(BuildContext context) async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    if (selectedDirectory != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('custom_download_path', selectedDirectory);
+      if (context.mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Download path updated: $selectedDirectory")),
+        );
+      }
+    }
+  }
+
+  Future<void> _resetDownloadPath(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('custom_download_path');
+    if (context.mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Download path reset to default.")),
+      );
+    }
+  }
+
+  Widget _buildTagChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 10, color: color, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = ref.watch(settingsProvider);
+    final settingsNotifier = ref.read(settingsProvider.notifier);
+    final library = p.Provider.of<LibraryProvider>(context);
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subtitleColor = isDark ? Colors.grey : Colors.grey[600];
+    final accentColor = settings.accentColor;
+
+    final List<Color> accentColors = [
+      const Color(0xFF6C5CE7),
+      const Color(0xFFFF7675),
+      const Color(0xFF00CEC9),
+      const Color(0xFFFD79A8),
+      const Color(0xFFFAB1A0),
+      const Color(0xFF55EFC4),
+    ];
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: ListView(
+        padding: const EdgeInsets.all(32),
+        children: [
+          Padding(
+            padding: EdgeInsets.only(
+                bottom: 30,
+                top: 20,
+                left: (Platform.isAndroid || Platform.isIOS) ? 40.0 : 0.0),
+            child: Text('Settings',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.bold, color: textColor)),
+          ),
+
+          // APPEARANCE
+          Text("APPEARANCE",
+              style:
+                  TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          SwitchListTile(
+            title: Text("Dark Mode", style: TextStyle(color: textColor)),
+            subtitle:
+                Text("Use dark theme", style: TextStyle(color: subtitleColor)),
+            value: settings.isDarkMode,
+            activeColor: accentColor,
+            onChanged: (val) => settingsNotifier.toggleTheme(val),
+          ),
+          
+          // THEME PRESET SELECTOR
+          ListTile(
+            title: Text("App Theme", style: TextStyle(color: textColor)),
+            subtitle: Text("Choose visual style",
+                style: TextStyle(color: subtitleColor)),
+            trailing: Theme(
+              data: Theme.of(context).copyWith(
+                hoverColor: Colors.transparent,
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+              ),
+              child: DropdownButton<ThemePreset>(
+                value: settings.themePreset,
+                dropdownColor: Theme.of(context).cardColor,
+                style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+                underline: Container(),
+                icon:
+                    Icon(Icons.keyboard_arrow_down_rounded, color: accentColor),
+                focusColor: Colors.transparent,
+                items: const [
+                   DropdownMenuItem(
+                      value: ThemePreset.deepBlue, child: Text("Deep Blue (Default)")),
+                   DropdownMenuItem(
+                      value: ThemePreset.oledBlack, child: Text("OLED Black")),
+                   DropdownMenuItem(
+                      value: ThemePreset.deepGrey, child: Text("Neutral Grey")),
+                   DropdownMenuItem(
+                      value: ThemePreset.dracula, child: Text("Dracula")),
+                   DropdownMenuItem(
+                      value: ThemePreset.midnightPurple, child: Text("Midnight Purple")),
+                   DropdownMenuItem(
+                      value: ThemePreset.forest, child: Text("Forest Green")),
+                   DropdownMenuItem(
+                      value: ThemePreset.batikBlue, child: Text("☁️ Batik Blue")),
+                ],
+                onChanged: (ThemePreset? newPreset) {
+                  if (newPreset != null) {
+                    settingsNotifier.setThemePreset(newPreset);
+                  }
+                },
+              ),
+            ),
+          ),
+
+          SwitchListTile(
+            title: Text("Sync Theme with Album Art",
+                style: TextStyle(color: textColor)),
+            subtitle: Text("Tint background and visualizer with song color",
+                style: TextStyle(color: subtitleColor)),
+            value: settings.syncThemeWithAlbumArt,
+            activeColor: accentColor,
+            onChanged: (val) =>
+                settingsNotifier.toggleSyncThemeWithAlbumArt(val),
+          ),
+          ListTile(
+            title: Text("Accent Color", style: TextStyle(color: textColor)),
+            subtitle: Text("Choose your preferred static color",
+                style: TextStyle(color: subtitleColor)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Wrap(
+              spacing: 12,
+              children: accentColors.map((color) {
+                final isSelected = settings.accentColor.value == color.value;
+                return GestureDetector(
+                  onTap: () => settingsNotifier.setAccentColor(color),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: isSelected
+                          ? Border.all(
+                              color: isDark ? Colors.white : Colors.black,
+                              width: 3)
+                          : null,
+                      boxShadow: [
+                        if (isSelected)
+                          BoxShadow(
+                              color: color.withOpacity(0.6),
+                              blurRadius: 10,
+                              spreadRadius: 2)
+                      ],
+                    ),
+                    child: isSelected
+                        ? Icon(Icons.check,
+                            color: isDark ? Colors.black : Colors.white,
+                            size: 20)
+                        : null,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 30),
+
+          ListTile(
+            title: Text("Content Region", style: TextStyle(color: textColor)),
+            subtitle: Text("Set country for new releases & charts",
+                style: TextStyle(color: subtitleColor)),
+            trailing: Theme(
+              data: Theme.of(context).copyWith(
+                hoverColor: Colors.transparent,
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+              ),
+              child: DropdownButton<String>(
+                value: settings.spotifyMarket,
+                dropdownColor: Theme.of(context).cardColor,
+                style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+                underline: Container(),
+                icon:
+                    Icon(Icons.keyboard_arrow_down_rounded, color: accentColor),
+                focusColor: Colors.transparent,
+                items: const [
+                  DropdownMenuItem(
+                      value: 'US', child: Text("🇺🇸 United States")),
+                  DropdownMenuItem(value: 'ID', child: Text("🇮🇩 Indonesia")),
+                  DropdownMenuItem(
+                      value: 'KR', child: Text("🇰🇷 South Korea")),
+                  DropdownMenuItem(value: 'JP', child: Text("🇯🇵 Japan")),
+                  DropdownMenuItem(
+                      value: 'GB', child: Text("🇬🇧 United Kingdom")),
+                  DropdownMenuItem(value: 'BR', child: Text("🇧🇷 Brazil")),
+                ],
+                onChanged: (String? newMarket) {
+                  if (newMarket != null) {
+                    settingsNotifier.setSpotifyMarket(newMarket);
+                  }
+                },
+              ),
+            ),
+          ),
+
+          // VISUALIZER
+          Text("VISUALIZER",
+              style:
+                  TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
+          SwitchListTile(
+            title: Text("Enable Bar Visualizer",
+                style: TextStyle(color: textColor)),
+            subtitle: Text("Show animated waves in player bar",
+                style: TextStyle(color: subtitleColor)),
+            value: settings.enableVisualizer,
+            activeColor: accentColor,
+            onChanged: (val) => settingsNotifier.toggleVisualizer(val),
+          ),
+          if (settings.enableVisualizer) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      "Opacity: ${(settings.visualizerOpacity * 100).toInt()}%",
+                      style: TextStyle(color: textColor, fontSize: 13)),
+                  Slider(
+                    value: settings.visualizerOpacity,
+                    min: 0.1,
+                    max: 1.0,
+                    activeColor: accentColor,
+                    inactiveColor: isDark ? Colors.white12 : Colors.black12,
+                    onChanged: (val) =>
+                        settingsNotifier.setVisualizerOpacity(val),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              title:
+                  Text("Visualizer Style", style: TextStyle(color: textColor)),
+              subtitle: Text("Choose animation type",
+                  style: TextStyle(color: subtitleColor)),
+              trailing: Theme(
+                data: Theme.of(context).copyWith(
+                  hoverColor: Colors.transparent,
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                ),
+                child: DropdownButton<VisualizerStyle>(
+                  value: settings.visualizerStyle,
+                  dropdownColor: Theme.of(context).cardColor,
+                  style:
+                      TextStyle(color: textColor, fontWeight: FontWeight.bold),
+                  underline: Container(),
+                  icon: Icon(Icons.keyboard_arrow_down_rounded,
+                      color: accentColor),
+                  focusColor: Colors.transparent,
+                  items: const [
+                    DropdownMenuItem(
+                        value: VisualizerStyle.spectrum,
+                        child: Text("Spectrum Bars")),
+                    DropdownMenuItem(
+                        value: VisualizerStyle.wave, child: Text("Fluid Wave")),
+                    DropdownMenuItem(
+                        value: VisualizerStyle.pulse,
+                        child: Text("Circular Pulse")),
+                  ],
+                  onChanged: (VisualizerStyle? newStyle) {
+                    if (newStyle != null) {
+                      settingsNotifier.setVisualizerStyle(newStyle);
+                    }
+                  },
+                ),
+              ),
+            ),
+            SwitchListTile(
+              title: Text("Rainbow Mode", style: TextStyle(color: textColor)),
+              subtitle: Text("Use mixed colors (Overrides sync)",
+                  style: TextStyle(color: subtitleColor)),
+              value: settings.isVisualizerRainbow,
+              activeColor: accentColor,
+              onChanged: (val) => settingsNotifier.toggleVisualizerRainbow(val),
+            ),
+          ],
+          const SizedBox(height: 30),
+
+          // INTEGRATION
+          Text("INTEGRATION",
+              style:
+                  TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
+          SwitchListTile(
+            title: Text("Discord Rich Presence",
+                style: TextStyle(color: textColor)),
+            subtitle: Text("Show status on Discord",
+                style: TextStyle(color: subtitleColor)),
+            value: settings.enableDiscordRpc,
+            activeColor: accentColor,
+            onChanged: (val) => settingsNotifier.toggleDiscordRpc(val),
+          ),
+          const SizedBox(height: 30),
+
+          // LIBRARY
+          Text("LIBRARY",
+              style:
+                  TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
+          ListTile(
+            title: Text("Music Folder Location",
+                style: TextStyle(color: textColor)),
+            subtitle: Text(library.selectedFolder ?? "No folder selected",
+                style: TextStyle(color: subtitleColor)),
+            trailing: TextButton(
+                onPressed: library.pickFolder,
+                child: Text("Change", style: TextStyle(color: accentColor))),
+          ),
+          SwitchListTile(
+            title: Text("Ignore Subfolder Scan",
+                style: TextStyle(color: textColor)),
+            subtitle: Text("Only scan selected folder (Default: On)",
+                style: TextStyle(color: subtitleColor)),
+            value: settings.ignoreSubfolders,
+            activeColor: accentColor,
+            onChanged: (val) => settingsNotifier.toggleIgnoreSubfolders(val),
+          ),
+
+          // Import Additional Paths Section
+          ListTile(
+            leading: Icon(Icons.create_new_folder_rounded, color: accentColor),
+            title: Text("Import Additional Paths",
+                style: TextStyle(color: textColor)),
+            subtitle: Text("Add more folders to scan",
+                style: TextStyle(color: subtitleColor)),
+            trailing: TextButton.icon(
+              icon: Icon(Icons.add, color: accentColor, size: 18),
+              label: Text("Add", style: TextStyle(color: accentColor)),
+              onPressed: () async {
+                String? result = await FilePicker.platform.getDirectoryPath();
+                if (result != null) {
+                  await settingsNotifier.addMusicFolder(result);
+                  // Scan the newly added folder
+                  await library.scanAdditionalFolder(result);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(
+                              "Added folder: ${result.split(Platform.pathSeparator).last}")),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+
+          // Display list of additional folders as removable chips
+          if (settings.additionalMusicFolders.isNotEmpty)
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: settings.additionalMusicFolders.map((folder) {
+                  final folderName = folder.split(Platform.pathSeparator).last;
+                  return Tooltip(
+                    message: folder, // Show full path on hover
+                    child: Chip(
+                      backgroundColor: isDark
+                          ? Colors.white.withOpacity(0.1)
+                          : Colors.grey[200],
+                      avatar: Icon(Icons.folder, size: 18, color: accentColor),
+                      label: Text(
+                        folderName,
+                        style: TextStyle(color: textColor, fontSize: 12),
+                      ),
+                      deleteIcon: Icon(Icons.close,
+                          size: 16,
+                          color: isDark ? Colors.white54 : Colors.black54),
+                      onDeleted: () async {
+                        await settingsNotifier.removeMusicFolder(folder);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text("Removed folder: $folderName")),
+                          );
+                        }
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          const SizedBox(height: 30),
+
+          // DOWNLOADS
+          Text("DOWNLOADS",
+              style:
+                  TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
+
+          // Filename Format
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Single Tracks", style: TextStyle(color: textColor)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _formatCtrl,
+                  style: TextStyle(color: textColor),
+                  onChanged: _onFormatChanged,
+                  onSubmitted: (_) => _saveFormat(),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: isDark ? Colors.white10 : Colors.grey[100],
+                    hintText: "{artist} - {title}",
+                    hintStyle: TextStyle(color: subtitleColor),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.save),
+                      color: accentColor,
+                      tooltip: "Save Format",
+                      onPressed: _saveFormat,
+                    ),
+                  ),
+                ),
+                if (_unsavedSingle)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4, bottom: 4),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            color: Colors.amber, size: 16),
+                        SizedBox(width: 4),
+                        Text("You have unsaved changes",
+                            style: TextStyle(
+                                color: Colors.amber,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 24),
+
+                // Playlist / Album Header
+                Text("Playlist / Album Tracks",
+                    style: TextStyle(color: textColor)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _playlistFormatCtrl,
+                  style: TextStyle(color: textColor),
+                  onChanged: _onPlaylistFormatChanged,
+                  onSubmitted: (_) => _saveFormat(),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: isDark ? Colors.white10 : Colors.grey[100],
+                    hintText: "{artist} - {title}",
+                    hintStyle: TextStyle(color: subtitleColor),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.save),
+                      color: accentColor,
+                      tooltip: "Save Format",
+                      onPressed: _saveFormat,
+                    ),
+                  ),
+                ),
+                if (_unsavedPlaylist)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4, bottom: 4),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            color: Colors.amber, size: 16),
+                        SizedBox(width: 4),
+                        Text("You have unsaved changes",
+                            style: TextStyle(
+                                color: Colors.amber,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    _buildTagChip("{artist}", accentColor),
+                    _buildTagChip("{title}", accentColor),
+                    _buildTagChip("{album}", accentColor),
+                    _buildTagChip("{number}", Colors.orange),
+                    _buildTagChip("{year}", Colors.grey),
+                    _buildTagChip("{track}", Colors.grey),
+                    _buildTagChip("{playlist_index}", Colors.orange),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Audio Format Selector (NEW)
+          ListTile(
+            title: Text("Audio Format", style: TextStyle(color: textColor)),
+            subtitle: Text("Preferred output format for downloads",
+                style: TextStyle(color: subtitleColor)),
+            trailing: Theme(
+              data: Theme.of(context).copyWith(
+                hoverColor: Colors.transparent,
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+              ),
+              child: DropdownButton<String>(
+                value: settings.audioFormat,
+                dropdownColor: Theme.of(context).cardColor,
+                style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+                underline: Container(),
+                icon:
+                    Icon(Icons.keyboard_arrow_down_rounded, color: accentColor),
+                focusColor: Colors.transparent,
+                items: const [
+                  DropdownMenuItem(value: 'mp3', child: Text("MP3 (Standard)")),
+                  DropdownMenuItem(value: 'm4a', child: Text("M4A (Better)")),
+                  DropdownMenuItem(value: 'aac', child: Text("AAC (Raw)")),
+                  DropdownMenuItem(
+                      value: 'flac', child: Text("FLAC (Lossless)")),
+                ],
+                onChanged: (String? newFormat) {
+                  if (newFormat != null) {
+                    settingsNotifier.setAudioFormat(newFormat);
+                  }
+                },
+              ),
+            ),
+          ),
+
+          // FLAC Note (only shown when FLAC is selected)
+          if (settings.audioFormat == 'flac')
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "Note: FLAC is available for single track downloads only. Bulk playlist downloads use M4A format.",
+                        style: TextStyle(
+                          color: Colors.orange.shade300,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Download Location
+          FutureBuilder<SharedPreferences>(
+            future: SharedPreferences.getInstance(),
+            builder: (context, snapshot) {
+              String currentPath = (Platform.isAndroid)
+                  ? "Default (/storage/emulated/0/Download/SimpleMusicDownloads)"
+                  : "Default (Downloads/SimpleMusicDownloads)";
+              bool hasCustomPath = false;
+              if (snapshot.hasData) {
+                final path = snapshot.data!.getString('custom_download_path');
+                if (path != null) {
+                  currentPath = path;
+                  hasCustomPath = true;
+                }
+              }
+              return ListTile(
+                title: Text("Download Location",
+                    style: TextStyle(color: textColor)),
+                subtitle:
+                    Text(currentPath, style: TextStyle(color: subtitleColor)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasCustomPath)
+                      IconButton(
+                        icon: const Icon(Icons.restore),
+                        color: Colors.orange,
+                        tooltip: "Reset to Default",
+                        onPressed: () => _resetDownloadPath(context),
+                      ),
+                    IconButton(
+                      icon: Icon(Icons.folder_open, color: accentColor),
+                      tooltip: "Change Folder",
+                      onPressed: () => _pickDownloadPath(context),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 30),
+
+          // STREAMING
+          Text("STREAMING",
+              style:
+                  TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
+
+          // Streaming Quality Selector
+          const SizedBox(height: 8),
+          ListTile(
+            title:
+                Text("Streaming Quality", style: TextStyle(color: textColor)),
+            subtitle: Text(
+              _getStreamingQualityDescription(settings.streamingQuality),
+              style: TextStyle(color: subtitleColor),
+            ),
+            trailing: Theme(
+              data: Theme.of(context).copyWith(
+                hoverColor: Colors.transparent,
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+              ),
+              child: DropdownButton<String>(
+                value: settings.streamingQuality,
+                dropdownColor: Theme.of(context).cardColor,
+                style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+                underline: Container(),
+                icon:
+                    Icon(Icons.keyboard_arrow_down_rounded, color: accentColor),
+                focusColor: Colors.transparent,
+                items: const [
+                  DropdownMenuItem(
+                      value: 'standard', child: Text("Standard (MP3)")),
+                  DropdownMenuItem(value: 'high', child: Text("High (M4A)")),
+                  DropdownMenuItem(
+                      value: 'lossless', child: Text("Lossless (Auto)")),
+                ],
+                onChanged: (String? newQuality) {
+                  if (newQuality != null) {
+                    settingsNotifier.setStreamingQuality(newQuality);
+                  }
+                },
+              ),
+            ),
+          ),
+
+          // Lossless Note (only shown when lossless is selected)
+          if (settings.streamingQuality == 'lossless')
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.high_quality, color: Colors.blue, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "Streams lossless FLAC from Deezer/Tidal when available. Falls back to M4A if unavailable.",
+                        style: TextStyle(
+                          color: Colors.blue.shade300,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 30),
+
+          // PLAYBACK
+          Text("PLAYBACK",
+              style:
+                  TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
+          Consumer(
+            builder: (context, ref, _) {
+              final playerState = ref.watch(playerProvider);
+              final playerNotifier = ref.read(playerProvider.notifier);
+              return SwitchListTile(
+                title:
+                    Text("Endless Queue", style: TextStyle(color: textColor)),
+                subtitle: Text(
+                    "Auto-add similar songs when queue is nearly empty",
+                    style: TextStyle(color: subtitleColor)),
+                value: playerState.endlessQueueEnabled,
+                activeColor: accentColor,
+                onChanged: (_) => playerNotifier.toggleEndlessQueue(),
+              );
+            },
+          ),
+          SwitchListTile(
+            title: Text("Disable Canvas", style: TextStyle(color: textColor)),
+            subtitle: Text("Hide Spotify Canvas video, show album art instead",
+                style: TextStyle(color: subtitleColor)),
+            value: settings.disableCanvas,
+            activeColor: accentColor,
+            onChanged: (val) => settingsNotifier.toggleDisableCanvas(val),
+          ),
+
+          // WASAPI Exclusive Mode (Windows Only)
+          if (Platform.isWindows)
+            SwitchListTile(
+              title: Text("WASAPI Exclusive Mode",
+                  style: TextStyle(color: textColor)),
+              subtitle: Text(
+                settings.wasapiExclusive
+                    ? "Bit-perfect audio with auto sample rate (Restart required)"
+                    : "Enable for audiophile DAC playback (Restart required)",
+                style: TextStyle(color: subtitleColor),
+              ),
+              value: settings.wasapiExclusive,
+              activeColor: accentColor,
+              onChanged: (val) {
+                settingsNotifier.toggleWasapiExclusive(val);
+                _showRestartDialog(context);
+              },
+            ),
+
+          // Android Bit-Perfect Mode (Android 14+)
+          if (Platform.isAndroid)
+            SwitchListTile(
+              title: Text("Android 14+ Bit-Perfect",
+                  style: TextStyle(color: textColor)),
+              subtitle: Text(
+                _isAndroidBitPerfectSupported
+                    ? "Bypass system mixer for USB DACs"
+                    : "Requires Android 14+ and USB DAC",
+                style: TextStyle(color: subtitleColor),
+              ),
+              value: settings.androidBitPerfect,
+              activeColor: accentColor,
+              onChanged: _isAndroidBitPerfectSupported
+                  ? (val) {
+                      settingsNotifier.toggleAndroidBitPerfect(val);
+                      if (val) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text(
+                                  "Bit-Perfect Mode Enabled. Volume control may be disabled.")),
+                        );
+                      }
+                    }
+                  : null, // Disable if not supported
+            ),
+
+          // USB Audio Bypass for Android < 14 (NEW)
+          if (Platform.isAndroid && !_isAndroidBitPerfectSupported)
+            _buildUsbAudioBypassSection(context, settings, settingsNotifier,
+                isDark, textColor, subtitleColor, accentColor),
+
+          if (Platform.isWindows) ...[
+            // Audio Device Selector
+            ListTile(
+              title: Text("Audio Output Device",
+                  style: TextStyle(color: textColor)),
+              subtitle: _loadingAudioDevices
+                  ? Text("Loading devices...",
+                      style: TextStyle(color: subtitleColor, fontSize: 12))
+                  : Text(
+                      settings.audioDeviceId == null
+                          ? "System Default"
+                          : (_audioDevices.firstWhere(
+                                  (d) => d['name'] == settings.audioDeviceId,
+                                  orElse: () => {})['description'] ??
+                              "Custom Device"),
+                      style: TextStyle(color: subtitleColor),
+                    ),
+              trailing: _loadingAudioDevices
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: accentColor),
+                    )
+                  : Theme(
+                      data: Theme.of(context).copyWith(
+                        hoverColor: Colors.transparent,
+                        splashColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
+                      ),
+                      child: DropdownButton<String?>(
+                        value: settings.audioDeviceId != null &&
+                                _audioDevices.any(
+                                    (d) => d['name'] == settings.audioDeviceId)
+                            ? settings.audioDeviceId
+                            : null, // Default to null if not found
+                        dropdownColor: Theme.of(context).cardColor,
+                        style: TextStyle(
+                            color: textColor, fontWeight: FontWeight.bold),
+                        underline: Container(),
+                        icon: Icon(Icons.keyboard_arrow_down_rounded,
+                            color: accentColor),
+                        alignment: Alignment.centerRight,
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text("System Default"),
+                          ),
+                          ..._audioDevices.map((d) {
+                            return DropdownMenuItem<String?>(
+                              value: d['name'],
+                              child: Container(
+                                constraints:
+                                    const BoxConstraints(maxWidth: 200),
+                                child: Text(
+                                  d['description'] ?? "Unknown",
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                        onChanged: (String? newId) {
+                          settingsNotifier.setAudioDeviceId(newId);
+                          _showRestartDialog(context);
+                        },
+                      ),
+                    ),
+            ),
+
+            // Exclusive Mode Warning
+            if (settings.wasapiExclusive && settings.audioDeviceId == null)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded,
+                        color: Colors.amber, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Warning: Exclusive Mode works best when a specific device is selected above, rather than System Default.",
+                        style: TextStyle(
+                            color: Colors.amber.shade300, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+
+          const SizedBox(height: 30),
+
+          // DATA & CLEANUP
+          Text("DATA & CLEANUP",
+              style:
+                  TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
+          ListTile(
+            leading:
+                Icon(Icons.folder_delete_rounded, color: Colors.orange[400]),
+            title:
+                Text("Reset Library Path", style: TextStyle(color: textColor)),
+            subtitle: Text("Unlink folder and clear song list",
+                style: TextStyle(color: subtitleColor)),
+            onTap: () {
+              if (library.selectedFolder == null) return;
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: Theme.of(context).cardColor,
+                  title: const Text("Reset Library?"),
+                  content: const Text(
+                    "This will remove the current folder from the player. Your actual files will NOT be deleted.",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text("Cancel", style: TextStyle(color: textColor)),
+                    ),
+                    TextButton(
+                      style:
+                          TextButton.styleFrom(foregroundColor: Colors.orange),
+                      onPressed: () {
+                        library.resetLibrary();
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Library path reset.")),
+                        );
+                      },
+                      child: const Text("Reset Path"),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading:
+                Icon(Icons.cleaning_services_rounded, color: Colors.blue[400]),
+            title: Text("Clear Streaming Cache",
+                style: TextStyle(color: textColor)),
+            subtitle: Text("Free up space (Current: $_cacheSizeText)",
+                style: TextStyle(color: subtitleColor)),
+            onTap: () async {
+              await _ytService.clearCache();
+              if (context.mounted) {
+                setState(() {
+                  _cacheSizeText = "0.0 MB";
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Cache cleared successfully!")),
+                );
+                _loadCacheSize();
+              }
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.delete_forever_rounded, color: Colors.red[400]),
+            title: Text("Reset Statistics", style: TextStyle(color: textColor)),
+            subtitle: Text("Clear play history and listening time",
+                style: TextStyle(color: subtitleColor)),
+            onTap: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: Theme.of(context).cardColor,
+                  title: const Text("Reset Stats?"),
+                  content: const Text(
+                    "This action cannot be undone.\nAll play counts and listening time will be lost forever.",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: Text("Cancel", style: TextStyle(color: textColor)),
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text("Reset Everything"),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await ref.read(statsProvider.notifier).resetStats();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Statistics have been reset."),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+          const SizedBox(height: 50),
+
+          // DEBUGGING
+          Text("DEBUGGING",
+              style:
+                  TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          SwitchListTile(
+            title: Text("Show Floating Debug Button",
+                style: TextStyle(color: textColor)),
+            subtitle: Text("Toggle visibility of the floating debug console",
+                style: TextStyle(color: subtitleColor)),
+            value: settings.showDebugButton,
+            activeColor: accentColor,
+            onChanged: (val) => settingsNotifier.toggleShowDebugButton(val),
+          ),
+          const SizedBox(height: 50),
+
+          // VERSION & ADMIN ACCESS (Hidden)
+          Center(
+            child: GestureDetector(
+              onTap: () {
+                // Secret Admin Access (5 taps)
+                // We use a static variable or state to count taps
+                // But for simplicity in this stateless widget logic:
+                _handleAdminTap(context);
+              },
+              child: Text(
+                _versionText,
+                style: TextStyle(
+                    color: subtitleColor?.withOpacity(0.5), fontSize: 12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 50),
+        ],
+      ),
+    );
+  }
+
+  // ============ USB Audio Bypass for Android <14 ============
+
+  Widget _buildUsbAudioBypassSection(
+    BuildContext context,
+    dynamic settings,
+    dynamic settingsNotifier,
+    bool isDark,
+    Color textColor,
+    Color? subtitleColor,
+    Color accentColor,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+
+        // USB Audio Bypass Header
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: accentColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: accentColor.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.usb_rounded, color: accentColor, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "USB Audio Bypass (Beta) - Direct DAC output for Android 13 and below",
+                    style: TextStyle(
+                      color: accentColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Enable/Disable USB Audio (Temporarily Disabled - Coming Soon)
+        SwitchListTile(
+          title: Row(
+            children: [
+              Text("USB Audio Bypass",
+                  style: TextStyle(color: textColor.withOpacity(0.5))),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                ),
+                child: const Text(
+                  "Coming Soon",
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          subtitle: Text(
+            "This feature is under development",
+            style: TextStyle(color: subtitleColor?.withOpacity(0.5)),
+          ),
+          value: false,
+          activeColor: accentColor,
+          onChanged: null, // Disabled
+        ),
+
+        // DAC List (when enabled) - Temporarily hidden while feature is under development
+        if (false && _usbAudioEnabled) ...[
+          // Scan button
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    "Connected USB DACs:",
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _loadingUsbDacs ? null : _scanForUsbDacs,
+                  icon: _loadingUsbDacs
+                      ? SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: accentColor,
+                          ),
+                        )
+                      : Icon(Icons.refresh, color: accentColor, size: 16),
+                  label: Text(
+                    _loadingUsbDacs ? "Scanning..." : "Scan",
+                    style: TextStyle(color: accentColor),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // DAC List
+          if (_usbDacs.isEmpty && !_loadingUsbDacs)
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: subtitleColor, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "No USB DAC detected. Connect a USB audio device and tap Scan.",
+                        style: TextStyle(color: subtitleColor, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...List.generate(_usbDacs.length, (index) {
+              final dac = _usbDacs[index];
+              final isConnected = _connectedDac?.vendorId == dac.vendorId &&
+                  _connectedDac?.productId == dac.productId;
+
+              return ListTile(
+                leading: Icon(
+                  Icons.speaker_rounded,
+                  color: isConnected ? Colors.green : accentColor,
+                ),
+                title: Text(
+                  dac.deviceName,
+                  style: TextStyle(color: textColor),
+                ),
+                subtitle: Text(
+                  "VID:${dac.vendorId.toRadixString(16).toUpperCase()} PID:${dac.productId.toRadixString(16).toUpperCase()}",
+                  style: TextStyle(color: subtitleColor, fontSize: 11),
+                ),
+                trailing: isConnected
+                    ? Chip(
+                        label: const Text("Connected"),
+                        backgroundColor: Colors.green.withOpacity(0.2),
+                        labelStyle: const TextStyle(
+                          color: Colors.green,
+                          fontSize: 11,
+                        ),
+                      )
+                    : TextButton(
+                        onPressed: () => _connectToDac(dac),
+                        child: Text("Connect",
+                            style: TextStyle(color: accentColor)),
+                      ),
+              );
+            }),
+        ],
+
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Future<void> _scanForUsbDacs() async {
+    setState(() => _loadingUsbDacs = true);
+    try {
+      final dacs = await UsbAudioService.getConnectedDacs();
+      if (mounted) {
+        setState(() {
+          _usbDacs = dacs;
+          _loadingUsbDacs = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error scanning USB DACs: $e");
+      if (mounted) setState(() => _loadingUsbDacs = false);
+    }
+  }
+
+  Future<void> _connectToDac(UsbDacDevice dac) async {
+    // Use the PlayerNotifier to enable bypass (this also opens the DAC)
+    final playerNotifier = ref.read(playerProvider.notifier);
+    final success = await playerNotifier.enableUsbAudioBypass(dac);
+    if (success) {
+      setState(() => _connectedDac = dac);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text("Connected to ${dac.deviceName} - USB Bypass Active")),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content:
+                  Text("Failed to connect to DAC. Check USB permissions.")),
+        );
+      }
+    }
+  }
+
+  // Admin Tap Logic
+  int _adminTapCount = 0;
+  DateTime? _lastTapTime;
+
+  void _handleAdminTap(BuildContext context) {
+    final now = DateTime.now();
+    if (_lastTapTime == null ||
+        now.difference(_lastTapTime!) > const Duration(seconds: 1)) {
+      _adminTapCount = 0; // Reset if too slow
+    }
+
+    _lastTapTime = now;
+    _adminTapCount++;
+
+    if (_adminTapCount >= 5) {
+      _adminTapCount = 0;
+      _showAdminLoginDialog(context);
+    }
+  }
+
+  Future<void> _showRestartDialog(BuildContext context) async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false, // Force choice
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: const Text("Restart Required"),
+        content: const Text(
+          "Changing the audio output device requires a restart application to take effect.\n\nWould you like to restart now?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text("Changes will apply on next restart.")),
+                );
+              }
+            },
+            child: const Text("Later"),
+          ),
+          FilledButton(
+            onPressed: () async {
+              // Restart Logic
+              if (Platform.isWindows) {
+                // Launch new instance
+                await Process.start(Platform.resolvedExecutable, []);
+                exit(0);
+              } else {
+                Navigator.pop(context);
+                // Fallback for other platforms
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text(
+                          "Auto-restart not supported. Please restart manually.")),
+                );
+              }
+            },
+            child: const Text("Restart Now"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAdminLoginDialog(BuildContext context) async {
+    final controller = TextEditingController();
+    final bool? success = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        title: const Text("Enter Admin Access Code"),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: "Access Code",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false), // Cancel
+            child: const Text("Cancel"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true), // Submit
+            child: const Text("Access"),
+          ),
+        ],
+      ),
+    );
+
+    if (success == true && controller.text.isNotEmpty) {
+      // Verify Code - returns 'admin', 'viewer', or null
+      final role = await MetricsService().verifyAdminCode(controller.text);
+
+      if (role != null) {
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AdminStatsPage(role: role),
+            ),
+          );
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text("❌ Invalid Access Code"),
+                backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+}

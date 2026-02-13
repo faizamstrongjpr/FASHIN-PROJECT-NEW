@@ -1,0 +1,325 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:simple_music_player_2/services/android_audio_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// NEW ENUM
+enum VisualizerStyle { spectrum, wave, pulse }
+
+// NEW ENUM: Theme Presets
+enum ThemePreset {
+  deepBlue, // Default (Current)
+  oledBlack, // Pitch Black
+  deepGrey, // Neutral Grey
+  dracula, // Dracula Theme
+  midnightPurple, // Deep Purple
+  forest, // Dark Green
+  batikBlue, // Light Blue with Batik
+}
+
+// --- STATE DEFINITION ---
+class SettingsState {
+  final bool isDarkMode;
+  final Color accentColor;
+  final ThemePreset themePreset; // NEW
+  final bool enableDiscordRpc;
+
+  // Visualizer Settings
+  final bool enableVisualizer;
+  final double visualizerOpacity;
+  final bool isVisualizerRainbow;
+  final bool syncThemeWithAlbumArt;
+  final VisualizerStyle visualizerStyle;
+  final String audioFormat;
+  final String spotifyMarket;
+  final String streamingQuality; // standard, high, lossless
+  final bool showDebugButton;
+  final bool ignoreSubfolders; // NEW: Default true
+  final bool disableCanvas; // Disable Spotify Canvas video loading
+  final List<String> additionalMusicFolders; // Additional import paths
+  final bool
+      wasapiExclusive; // Windows: WASAPI exclusive mode for bit-perfect audio
+  final String? audioDeviceId; // Selected MPV audio device ID
+  final bool androidBitPerfect; // Android 14+: Bit-perfect audio mode
+
+  SettingsState({
+    this.isDarkMode = true,
+    this.accentColor = const Color(0xFF6C5CE7),
+    this.themePreset = ThemePreset.deepBlue,
+    this.enableDiscordRpc = true,
+    this.enableVisualizer = true,
+    this.visualizerOpacity = 0.3,
+    this.isVisualizerRainbow = false,
+    this.syncThemeWithAlbumArt = false,
+    this.visualizerStyle = VisualizerStyle.spectrum,
+    this.audioFormat = 'mp3',
+    this.spotifyMarket = 'KR',
+    this.streamingQuality = 'high', // Default to high (M4A)
+    this.showDebugButton = false,
+    this.ignoreSubfolders = true,
+    this.disableCanvas = true,
+    this.additionalMusicFolders = const [],
+    this.wasapiExclusive = false, // Default OFF - exclusive locks audio device
+    this.audioDeviceId,
+    this.androidBitPerfect = false,
+  });
+
+  SettingsState copyWith({
+    bool? isDarkMode,
+    Color? accentColor,
+    ThemePreset? themePreset,
+    bool? enableDiscordRpc,
+    bool? enableVisualizer,
+    double? visualizerOpacity,
+    bool? isVisualizerRainbow,
+    bool? syncThemeWithAlbumArt,
+    VisualizerStyle? visualizerStyle,
+    String? audioFormat,
+    String? spotifyMarket,
+    String? streamingQuality,
+    bool? showDebugButton,
+    bool? ignoreSubfolders,
+    bool? disableCanvas,
+    List<String>? additionalMusicFolders,
+    bool? wasapiExclusive,
+    String? audioDeviceId,
+    bool? androidBitPerfect,
+  }) {
+    return SettingsState(
+      isDarkMode: isDarkMode ?? this.isDarkMode,
+      accentColor: accentColor ?? this.accentColor,
+      themePreset: themePreset ?? this.themePreset,
+      enableDiscordRpc: enableDiscordRpc ?? this.enableDiscordRpc,
+      enableVisualizer: enableVisualizer ?? this.enableVisualizer,
+      visualizerOpacity: visualizerOpacity ?? this.visualizerOpacity,
+      isVisualizerRainbow: isVisualizerRainbow ?? this.isVisualizerRainbow,
+      syncThemeWithAlbumArt:
+          syncThemeWithAlbumArt ?? this.syncThemeWithAlbumArt,
+      visualizerStyle: visualizerStyle ?? this.visualizerStyle,
+      audioFormat: audioFormat ?? this.audioFormat,
+      spotifyMarket: spotifyMarket ?? this.spotifyMarket,
+      streamingQuality: streamingQuality ?? this.streamingQuality,
+      showDebugButton: showDebugButton ?? this.showDebugButton,
+      ignoreSubfolders: ignoreSubfolders ?? this.ignoreSubfolders,
+      disableCanvas: disableCanvas ?? this.disableCanvas,
+      additionalMusicFolders:
+          additionalMusicFolders ?? this.additionalMusicFolders,
+      wasapiExclusive: wasapiExclusive ?? this.wasapiExclusive,
+      audioDeviceId: audioDeviceId ?? this.audioDeviceId,
+      androidBitPerfect: androidBitPerfect ?? this.androidBitPerfect,
+    );
+  }
+}
+
+// --- NOTIFIER CLASS ---
+class SettingsNotifier extends StateNotifier<SettingsState> {
+  final SharedPreferences _prefs;
+
+  SettingsNotifier(this._prefs) : super(SettingsState()) {
+    _loadSettings();
+  }
+
+  void _loadSettings() {
+    final isDark = _prefs.getBool('isDarkMode') ?? true;
+    final colorValue = _prefs.getInt('accentColor') ?? 0xFF6C5CE7;
+    final rpcEnabled = _prefs.getBool('enableDiscordRpc') ?? true;
+
+    final visEnabled = _prefs.getBool('enableVisualizer') ?? true;
+    final visOpacity = _prefs.getDouble('visualizerOpacity') ?? 0.3;
+    final visRainbow = _prefs.getBool('isVisualizerRainbow') ?? false;
+    final themeSync = _prefs.getBool('syncThemeWithAlbumArt') ?? false;
+
+    // Load Style Enum (Save as int index)
+    final styleIndex = _prefs.getInt('visualizerStyle') ?? 0;
+    final style = VisualizerStyle.values[styleIndex];
+
+    // Load Theme Preset
+    final themeIndex = _prefs.getInt('themePreset') ?? 0;
+    final preset = ThemePreset.values[themeIndex];
+
+    final format = _prefs.getString('audioFormat') ?? 'mp3';
+    final market = _prefs.getString('spotifyMarket') ?? 'KR';
+    final streaming = _prefs.getString('streamingQuality') ?? 'high';
+    final showDebug = _prefs.getBool('showDebugButton') ?? false;
+    final ignoreSub = _prefs.getBool('ignoreSubfolders') ?? true;
+    final disableCanvas = _prefs.getBool('disableCanvas') ?? false;
+    final additionalFolders =
+        _prefs.getStringList('additionalMusicFolders') ?? [];
+    final wasapiExclusive = _prefs.getBool('wasapiExclusive') ?? false;
+    final audioDeviceId = _prefs.getString('audioDeviceId'); // Nullable
+    final androidBitPerfect = _prefs.getBool('androidBitPerfect') ?? false;
+
+    // Initialize Android Bit-Perfect mode if enabled
+    if (androidBitPerfect) {
+      AndroidAudioService.setBitPerfectMode(true);
+    }
+
+    state = SettingsState(
+      isDarkMode: isDark,
+      accentColor: Color(colorValue),
+      themePreset: preset,
+      enableDiscordRpc: rpcEnabled,
+      enableVisualizer: visEnabled,
+      visualizerOpacity: visOpacity,
+      isVisualizerRainbow: visRainbow,
+      syncThemeWithAlbumArt: themeSync,
+      visualizerStyle: style,
+      audioFormat: format,
+      spotifyMarket: market,
+      streamingQuality: streaming,
+      showDebugButton: showDebug,
+      ignoreSubfolders: ignoreSub,
+      disableCanvas: disableCanvas,
+      additionalMusicFolders: additionalFolders,
+      wasapiExclusive: wasapiExclusive,
+      audioDeviceId: audioDeviceId,
+      androidBitPerfect: androidBitPerfect,
+    );
+  }
+
+  Future<void> toggleTheme(bool isDark) async {
+    await _prefs.setBool('isDarkMode', isDark);
+    state = state.copyWith(isDarkMode: isDark);
+  }
+
+  Future<void> setAccentColor(Color color) async {
+    await _prefs.setInt('accentColor', color.value);
+    state = state.copyWith(accentColor: color);
+  }
+
+  Future<void> setThemePreset(ThemePreset preset) async {
+    await _prefs.setInt('themePreset', preset.index);
+    state = state.copyWith(themePreset: preset);
+    
+    // Auto-set accent color if applicable, or logic can be in AppTheme
+    // For Batik, we might want to force a specific accent (e.g., Gold or Dark Blue)
+    if (preset == ThemePreset.batikBlue) {
+       // Optional: Set a complimenting accent color logic here if desired
+    }
+  }
+
+  Future<void> toggleDiscordRpc(bool enabled) async {
+    await _prefs.setBool('enableDiscordRpc', enabled);
+    state = state.copyWith(enableDiscordRpc: enabled);
+  }
+
+  Future<void> toggleVisualizer(bool enabled) async {
+    await _prefs.setBool('enableVisualizer', enabled);
+    state = state.copyWith(enableVisualizer: enabled);
+  }
+
+  Future<void> setVisualizerOpacity(double value) async {
+    await _prefs.setDouble('visualizerOpacity', value);
+    state = state.copyWith(visualizerOpacity: value);
+  }
+
+  Future<void> toggleVisualizerRainbow(bool enabled) async {
+    await _prefs.setBool('isVisualizerRainbow', enabled);
+    state = state.copyWith(isVisualizerRainbow: enabled);
+  }
+
+  Future<void> toggleSyncThemeWithAlbumArt(bool enabled) async {
+    await _prefs.setBool('syncThemeWithAlbumArt', enabled);
+    state = state.copyWith(syncThemeWithAlbumArt: enabled);
+  }
+
+  // Set Style
+  Future<void> setVisualizerStyle(VisualizerStyle style) async {
+    await _prefs.setInt('visualizerStyle', style.index);
+    state = state.copyWith(visualizerStyle: style);
+  }
+
+  // Extension Output file
+  Future<void> setAudioFormat(String format) async {
+    await _prefs.setString('audioFormat', format);
+    state = state.copyWith(audioFormat: format);
+  }
+
+  // Set Market Region for Spotify Recommendation Latest Released
+  Future<void> setSpotifyMarket(String market) async {
+    await _prefs.setString('spotifyMarket', market);
+    state = state.copyWith(spotifyMarket: market);
+  }
+
+  // Set Streaming Quality (standard, high, lossless)
+  Future<void> setStreamingQuality(String quality) async {
+    await _prefs.setString('streamingQuality', quality);
+    state = state.copyWith(streamingQuality: quality);
+  }
+
+  Future<void> toggleShowDebugButton(bool enabled) async {
+    await _prefs.setBool('showDebugButton', enabled);
+    state = state.copyWith(showDebugButton: enabled);
+  }
+
+  Future<void> toggleIgnoreSubfolders(bool enabled) async {
+    await _prefs.setBool('ignoreSubfolders', enabled);
+    state = state.copyWith(ignoreSubfolders: enabled);
+  }
+
+  Future<void> toggleDisableCanvas(bool enabled) async {
+    await _prefs.setBool('disableCanvas', enabled);
+    state = state.copyWith(disableCanvas: enabled);
+  }
+
+  /// Toggle WASAPI exclusive mode (Windows only)
+  /// Note: Requires app restart to take effect
+  Future<void> toggleWasapiExclusive(bool enabled) async {
+    await _prefs.setBool('wasapiExclusive', enabled);
+    state = state.copyWith(wasapiExclusive: enabled);
+  }
+
+  /// Set Audio Device ID (Windows only)
+  Future<void> setAudioDeviceId(String? deviceId) async {
+    if (deviceId == null) {
+      await _prefs.remove('audioDeviceId');
+    } else {
+      await _prefs.setString('audioDeviceId', deviceId);
+    }
+    state = state.copyWith(audioDeviceId: deviceId);
+  }
+
+  // Additional Music Folders
+  Future<void> addMusicFolder(String path) async {
+    if (state.additionalMusicFolders.contains(path)) return;
+    final newFolders = [...state.additionalMusicFolders, path];
+    await _prefs.setStringList('additionalMusicFolders', newFolders);
+    state = state.copyWith(additionalMusicFolders: newFolders);
+  }
+
+  Future<void> removeMusicFolder(String path) async {
+    final newFolders =
+        state.additionalMusicFolders.where((f) => f != path).toList();
+    await _prefs.setStringList('additionalMusicFolders', newFolders);
+    state = state.copyWith(additionalMusicFolders: newFolders);
+  }
+
+  Future<void> clearAllMusicFolders() async {
+    await _prefs.remove('additionalMusicFolders');
+    state = state.copyWith(additionalMusicFolders: []);
+  }
+
+  /// Toggle Android 14+ Bit-Perfect Mode
+  Future<void> toggleAndroidBitPerfect(bool enabled) async {
+    // Attempt to set mode via MethodChannel
+    final success = await AndroidAudioService.setBitPerfectMode(enabled);
+    if (!success) {
+      // If native call failed (e.g. no USB device), do not update state to true
+      // But if we were trying to disable, allow it.
+      if (enabled) return;
+    }
+
+    await _prefs.setBool('androidBitPerfect', enabled);
+    state = state.copyWith(androidBitPerfect: enabled);
+  }
+}
+
+final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
+  throw UnimplementedError("SharedPreferences not initialized");
+});
+
+final settingsProvider =
+    StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return SettingsNotifier(prefs);
+});
