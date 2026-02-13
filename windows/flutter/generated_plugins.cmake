@@ -5,7 +5,6 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   bitsdojo_window_windows
   flutter_inappwebview_windows
-  flutter_media_metadata
   isar_flutter_libs
   just_audio_windows
   media_kit_libs_windows_video
@@ -14,12 +13,10 @@ list(APPEND FLUTTER_PLUGIN_LIST
   share_plus
   url_launcher_windows
   window_manager
-  windows_taskbar
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   metadata_god
-  smtc_windows
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

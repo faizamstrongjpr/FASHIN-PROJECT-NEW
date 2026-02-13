@@ -26,7 +26,7 @@ dependencies:
   # Tools
   shared_preferences: ^2.2.2
   path: ^1.9.0
-  file_picker: ^10.3.7
+  file_picker: ^5.3.3
   package_info_plus: ^5.0.0 # Downgraded to match older web
   
   # Parsing HTTP
