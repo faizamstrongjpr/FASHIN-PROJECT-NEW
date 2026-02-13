@@ -11,32 +11,32 @@ dependencies:
     sdk: flutter
   
   # State Management
-  flutter_riverpod: ^2.4.9
+  flutter_riverpod: ^2.5.1
   
   # Audio
-  just_audio: ^0.9.36
-  audio_service: ^0.18.12
+  just_audio: ^0.9.40
+  audio_service: ^0.18.15
   just_audio_windows:
-  # equalizer_flutter: ^0.0.1 # REMOVED
+  # equalizer_flutter: ^0.0.1 # Still disabled as it's truly broken
 
   # Metadata
-  # metadata_god: ^1.0.0 # REMOVED due to Dart SDK conflict
-  # flutter_media_metadata: 1.0.0+1 # REMOVED
+  metadata_god: ^1.1.0 # Restore
+  # flutter_media_metadata: 1.0.0+1 # Still disabled
   
   # Tools
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.3.2
   path: ^1.9.0
-  file_picker: ^5.3.3
-  package_info_plus: ^5.0.0 # Downgraded to match older web
+  file_picker: ^8.1.0 # Restore
+  package_info_plus: ^8.1.0 # Restore
   
   # Parsing HTTP
-  http: ^1.0.0
-  html: ^0.15.0 # Downgraded/Stable
+  http: ^1.2.2
+  html: ^0.15.4
 
   # UI
   glassmorphism: ^3.0.0
-  google_fonts: ^6.1.0
-  provider: ^6.1.5+1
+  google_fonts: ^6.2.1
+  provider: ^6.1.2
   flutter_dotenv: ^6.0.0
   envied: ^0.5.4+1
   scrollable_positioned_list:
@@ -45,56 +45,50 @@ dependencies:
   window_manager: ^0.3.9 # Kept for deskto compatibility if needed, but safe
 
   # Shareable Card
-  screenshot: ^2.3.0 # Downgraded
-  share_plus: ^8.0.0 # Downgraded to match package_info_plus
-  path_provider: ^2.1.2 
+  screenshot: ^3.0.0 # Restore
+  share_plus: ^10.1.0 # Restore
+  path_provider: ^2.1.4 
 
   # Online Stream
   soundcloud_explode_dart: ^1.1.0
-  just_audio_media_kit: ^2.0.0
-  media_kit: ^1.1.0
+  just_audio_media_kit: ^2.1.0
+  media_kit: ^1.1.10
   media_kit_libs_video: ^1.0.0
 
   # Youtube Parser
-  permission_handler: ^11.0.0
+  permission_handler: ^11.3.1
   youtube_explode_dart: ^2.5.0
-  flutter_local_notifications: ^17.0.0
+  flutter_local_notifications: ^17.2.2
 
   # Utilities
-  uuid: ^4.3.3
-  ffi: ^2.1.0
+  uuid: ^4.5.1
+  ffi: ^2.1.3
 
   # Databases
   isar: ^3.1.0+1
   isar_flutter_libs: ^3.1.0+1
-  # smtc_windows: ^1.1.0 # REMOVED
-  # windows_taskbar: ^1.1.2 # REMOVED
+  # smtc_windows: ^1.1.0 # Still disabled to focus on Android
+  # windows_taskbar: ^1.1.2 # Still disabled
 
   # Device Info
-  device_info_plus: ^10.0.0 # Downgraded
-  crypto: ^3.0.3
-  intl: ^0.18.1
+  device_info_plus: ^11.1.0 # Restore
+  crypto: ^3.0.5 # Restore
+  intl: ^0.20.2 # Match modern SDK
   qr_flutter: ^4.1.0
   flutter_localizations:
     sdk: flutter
   pocketbase: ^0.23.0+1
-  open_filex: ^4.4.0
-  flutter_inappwebview: ^6.0.0
+  open_filex: ^4.5.0
+  flutter_inappwebview: ^6.1.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
-  build_runner: ^2.4.8
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.11
   isar_generator: ^3.1.0+1
   envied_generator: ^0.5.4+1
   flutter_launcher_icons: ^0.13.1
-
-# 🚀 SAFETY NET: Force versions to align
-dependency_overrides:
-  meta: ^1.11.0
-  intl: ^0.18.1
-  web: ^0.4.0
 
 flutter:
   uses-material-design: true
