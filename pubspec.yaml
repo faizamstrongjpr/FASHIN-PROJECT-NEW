@@ -15,28 +15,24 @@ dependencies:
   
   # Audio
   just_audio: ^0.9.36
-  audio_service: ^0.18.12  # Android notification media controls
+  audio_service: ^0.18.12
   just_audio_windows:
-  # equalizer_flutter: ^0.0.1 # REMOVED due to namespace build errors
+  # equalizer_flutter: ^0.0.1 # REMOVED
 
   # Metadata
-  metadata_god: 1.1.0
-  # flutter_media_metadata: 1.0.0+1 # REMOVED due to namespace build error
+  metadata_god: ^1.0.0 # Downgraded from 1.1.0
+  # flutter_media_metadata: 1.0.0+1 # REMOVED
   
-  # Discord - REMOVED
-
   # Tools
   shared_preferences: ^2.2.2
   path: ^1.9.0
   file_picker: ^10.3.7
-  package_info_plus: ^7.0.0
-
+  package_info_plus: ^5.0.0 # Downgraded to match older web
+  
   # Parsing HTTP
   http: ^1.0.0
-  html: ^0.15.0
+  html: ^0.15.0 # Downgraded/Stable
 
-  # Video Player - REMOVED
-  
   # UI
   glassmorphism: ^3.0.0
   google_fonts: ^6.1.0
@@ -46,25 +42,23 @@ dependencies:
   scrollable_positioned_list:
   palette_generator: ^0.3.3
   bitsdojo_window: ^0.1.5
-  window_manager: ^0.3.9
+  window_manager: ^0.3.9 # Kept for deskto compatibility if needed, but safe
 
-  # Shareable Card for stats
-  screenshot: ^2.3.0
-  share_plus: ^9.0.0
-  path_provider: ^2.1.2 #temporary save image
+  # Shareable Card
+  screenshot: ^2.3.0 # Downgraded
+  share_plus: ^8.0.0 # Downgraded to match package_info_plus
+  path_provider: ^2.1.2 
 
   # Online Stream
-  # youtube_explode_dart: ^2.5.3 #To hunt for audio on YouTube without an API key.
   soundcloud_explode_dart: ^1.1.0
-  just_audio_media_kit: ^2.0.0 # Replaced missing local fork
+  just_audio_media_kit: ^2.0.0
   media_kit: ^1.1.0
   media_kit_libs_video: ^1.0.0
 
   # Youtube Parser
   permission_handler: ^11.0.0
   youtube_explode_dart: ^2.5.0
-  flutter_local_notifications: ^17.0.0 # 🚀 Notifications
-  # flutter_ffmpeg: ^0.4.2 # 🚀 FFmpeg (Incompatible with AGP 8.x - missing namespace)
+  flutter_local_notifications: ^17.0.0
 
   # Utilities
   uuid: ^4.3.3
@@ -72,50 +66,35 @@ dependencies:
 
   # Databases
   isar: ^3.1.0+1
-  isar_flutter_libs: ^3.1.0+1 # For multi-platform
-  # smtc_windows: ^1.1.0 # REMOVED for Android build
-  # windows_taskbar: ^1.1.2 # REMOVED for Android build
+  isar_flutter_libs: ^3.1.0+1
+  # smtc_windows: ^1.1.0 # REMOVED
+  # windows_taskbar: ^1.1.2 # REMOVED
 
-  # Firebase
-  # Firebase REMOVED for PocketBase Migration
-  # firebase_core: ^3.0.0
-  # firebase_auth: ^5.0.0
-  # cloud_firestore: ^5.0.0
-  device_info_plus: ^10.1.0
+  # Device Info
+  device_info_plus: ^10.0.0 # Downgraded
   crypto: ^3.0.3
   intl: ^0.18.1
   qr_flutter: ^4.1.0
   flutter_localizations:
     sdk: flutter
   pocketbase: ^0.23.0+1
-  # ffmpeg_kit_flutter_new_audio: ^2.0.0 # REMOVED: Conflict with youtubedl-android
-  open_filex: ^4.4.0  # For auto-installing APK updates
-  flutter_inappwebview: ^6.1.5
+  open_filex: ^4.4.0
+  flutter_inappwebview: ^6.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-
-  # Isar Database
-  build_runner: ^2.4.8        # Runs the code generator
-  isar_generator: ^3.1.0+1    # Generates the database code
+  build_runner: ^2.4.8
+  isar_generator: ^3.1.0+1
   envied_generator: ^0.5.4+1
-  
-  # Icon Generator
   flutter_launcher_icons: ^0.13.1
 
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/icon_source.png"
-  min_sdk_android: 21
-  windows:
-    generate: true
-    icon_size: 48
-  macos:
-    generate: true
-    image_path: "assets/icon_source.png"
+# 🚀 SAFETY NET: Force versions to align
+dependency_overrides:
+  meta: ^1.11.0
+  intl: ^0.18.1
+  web: ^0.4.0
 
 flutter:
   uses-material-design: true
