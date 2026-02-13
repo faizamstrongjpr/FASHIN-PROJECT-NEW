@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter_media_metadata/flutter_media_metadata.dart';
+// import 'package:flutter_media_metadata/flutter_media_metadata.dart'; // REMOVED
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;

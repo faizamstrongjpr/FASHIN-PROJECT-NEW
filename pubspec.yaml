@@ -21,7 +21,7 @@ dependencies:
 
   # Metadata
   metadata_god: 1.1.0
-  flutter_media_metadata: 1.0.0+1
+  # flutter_media_metadata: 1.0.0+1 # REMOVED due to namespace build error
   
   # Discord - REMOVED
 
