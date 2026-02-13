@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:metadata_god/metadata_god.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:smtc_windows/smtc_windows.dart';
+// import 'package:smtc_windows/smtc_windows.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
 // --- PROJECT IMPORTS ---

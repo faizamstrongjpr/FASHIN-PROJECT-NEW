@@ -29,7 +29,7 @@ dependencies:
   shared_preferences: ^2.2.2
   path: ^1.9.0
   file_picker: ^10.3.7
-  package_info_plus: ^8.0.0
+  package_info_plus: ^5.0.0
 
   # Parsing HTTP
   http: ^1.0.0
@@ -73,8 +73,8 @@ dependencies:
   # Databases
   isar: ^3.1.0+1
   isar_flutter_libs: ^3.1.0+1 # For multi-platform
-  smtc_windows: ^1.1.0
-  windows_taskbar: ^1.1.2
+  # smtc_windows: ^1.1.0 # REMOVED for Android build
+  # windows_taskbar: ^1.1.2 # REMOVED for Android build
 
   # Firebase
   # Firebase REMOVED for PocketBase Migration
